@@ -8,8 +8,6 @@ from datetime import datetime
 import threading
 import time
 
-# Assuming the module structure from imports
-# You may need to adjust these imports based on your actual project structure
 from password_cracker.core.cracker import PasswordCracker
 
 
@@ -163,11 +161,7 @@ class TestPotfileOperations(unittest.TestCase):
 
         result = cracker.check_potfile()
 
-        # Should find pass1 first since passwords are tested in the order returned by the set
-        # Actually, sets are unordered, but the second call to verify_hash returns True
-        # So we need to check which password was actually returned
         self.assertIn(result, ["pass1", "pass2", "pass3"])
-        # Verify was called until a match was found
         self.assertLessEqual(mock_verify.call_count, 3)
 
     @patch('password_cracker.core.cracker.HashManager.repair_hash')
@@ -247,7 +241,6 @@ class TestPotfileOperations(unittest.TestCase):
         with open(self.potfile_path, "r") as f:
             lines = f.readlines()
 
-        # Should not add duplicate
         self.assertEqual(len(lines), 1)
 
     @patch('password_cracker.core.cracker.HashManager.repair_hash')
@@ -263,8 +256,7 @@ class TestPotfileOperations(unittest.TestCase):
 
         cracker.save_to_potfile("testpass")
 
-        # Should skip Argon2, bcrypt, scrypt
-        self.assertEqual(mock_gen_hash.call_count, 1)  # Only SHA256 (MD5 is current algorithm)
+        self.assertEqual(mock_gen_hash.call_count, 1)
 
     @patch('password_cracker.core.cracker.HashManager.repair_hash')
     @patch('password_cracker.core.cracker.HashManager.get_supported_algorithms')
@@ -279,7 +271,6 @@ class TestPotfileOperations(unittest.TestCase):
 
         cracker.save_to_potfile("testpass")
 
-        # Should skip MD5 (current algorithm)
         self.assertEqual(mock_gen_hash.call_count, 2)
 
     @patch('password_cracker.core.cracker.HashManager.repair_hash')
@@ -293,13 +284,11 @@ class TestPotfileOperations(unittest.TestCase):
         cracker = PasswordCracker(target_hash="test_hash", verbose=False)
         cracker.potfile_path = self.potfile_path
 
-        # Should not raise exception
         cracker.save_to_potfile("testpass")
 
         with open(self.potfile_path, "r") as f:
             content = f.read()
 
-        # Should still save target hash and successful hash
         self.assertIn("test_hash:testpass", content)
         self.assertIn("hash_sha1:testpass", content)
 
@@ -377,7 +366,7 @@ class TestSessionManagement(unittest.TestCase):
         mock_repair.return_value = "test_hash"
         cracker = PasswordCracker(target_hash="test_hash", algorithm="md5")
         cracker.restore_file = os.path.join(self.temp_dir, "session.json")
-        cracker.pending_resume = None  # Initialize to avoid AttributeError
+        cracker.pending_resume = None
 
         progress = {"line_number": 1000, "total_lines": 5000}
         cracker._save_session("dictionary", progress)
@@ -448,7 +437,6 @@ class TestSessionManagement(unittest.TestCase):
         cracker = PasswordCracker(target_hash="test_hash")
         cracker.restore_file = os.path.join(self.temp_dir, "nonexistent.json")
 
-        # Should not raise exception
         cracker._clear_session()
 
     @patch('password_cracker.core.cracker.HashManager.repair_hash')
@@ -536,7 +524,6 @@ class TestCheckpointThread(unittest.TestCase):
         self.assertTrue(cracker.checkpoint_thread.is_alive())
         self.assertEqual(cracker.current_strategy, "dictionary")
 
-        # Cleanup
         cracker._stop_checkpoint_thread(clear_session=False)
 
     @patch('password_cracker.core.cracker.HashManager.repair_hash')
@@ -545,11 +532,11 @@ class TestCheckpointThread(unittest.TestCase):
         cracker = PasswordCracker(target_hash="test_hash", checkpoint_interval=1)
 
         cracker._start_checkpoint_thread("dictionary")
-        time.sleep(0.1)  # Let thread start
+        time.sleep(0.1)
 
         cracker._stop_checkpoint_thread(clear_session=False)
 
-        time.sleep(0.2)  # Wait for thread to stop
+        time.sleep(0.2)
         self.assertFalse(cracker.checkpoint_thread.is_alive())
 
     @patch('password_cracker.core.cracker.HashManager.repair_hash')
@@ -562,11 +549,10 @@ class TestCheckpointThread(unittest.TestCase):
             cracker.current_progress = {"test": "progress"}
 
             cracker._start_checkpoint_thread("test_strategy")
-            time.sleep(1.5)  # Wait for at least one checkpoint
+            time.sleep(1.5)
 
             cracker._stop_checkpoint_thread(clear_session=False)
 
-            # Should have saved at least once
             self.assertGreater(mock_save.call_count, 0)
 
 
@@ -621,7 +607,6 @@ class TestExecuteWithCache(unittest.TestCase):
                             )
 
         self.assertEqual(result, "found_password")
-        # Check that min_length was updated
         call_kwargs = mock_strategy.call_args[1]
         self.assertEqual(call_kwargs['min_length'], 5)
 
@@ -649,7 +634,6 @@ class TestExecuteWithCache(unittest.TestCase):
                             )
 
         self.assertEqual(result, "found_password")
-        # Check that start_line was passed
         call_kwargs = mock_strategy.call_args[1]
         self.assertEqual(call_kwargs['start_line'], 1000)
 
@@ -1115,6 +1099,96 @@ class TestEdgeCases(unittest.TestCase):
 
                 call_kwargs = mock_exec.call_args[1]
                 self.assertEqual(call_kwargs['custom_charsets'], {})
+
+
+class TestCrackerPromptResume(unittest.TestCase):
+    """Test _prompt_resume method"""
+
+    @patch('password_cracker.core.cracker.HashManager.repair_hash')
+    @patch('builtins.input', return_value='y')
+    def test_prompt_resume_accepts_y(self, mock_input, mock_repair):
+        """Test prompt resume accepts 'y'"""
+        mock_repair.return_value = "test_hash"
+        cracker = PasswordCracker(target_hash="test_hash", verbose=False)
+
+        session = {
+            'strategy': 'dictionary',
+            'started_at': None,
+            'last_save': None,
+            'progress': {}
+        }
+
+        result = cracker._prompt_resume(session)
+        self.assertTrue(result)
+
+    @patch('password_cracker.core.cracker.HashManager.repair_hash')
+    @patch('builtins.input', return_value='n')
+    def test_prompt_resume_declines_n(self, mock_input, mock_repair):
+        """Test prompt resume declines 'n'"""
+        mock_repair.return_value = "test_hash"
+        cracker = PasswordCracker(target_hash="test_hash", verbose=False)
+
+        session = {
+            'strategy': 'dictionary',
+            'started_at': None,
+            'last_save': None,
+            'progress': {}
+        }
+
+        result = cracker._prompt_resume(session)
+        self.assertFalse(result)
+
+    @patch('password_cracker.core.cracker.HashManager.repair_hash')
+    @patch('builtins.input', return_value='')
+    def test_prompt_resume_default_no(self, mock_input, mock_repair):
+        """Test prompt resume defaults to NO on empty input (matches code behavior)"""
+        mock_repair.return_value = "test_hash"
+        cracker = PasswordCracker(target_hash="test_hash", verbose=False)
+
+        session = {
+            'strategy': 'dictionary',
+            'started_at': None,
+            'last_save': None,
+            'progress': {}
+        }
+
+        result = cracker._prompt_resume(session)
+        self.assertFalse(result)  # UPDATED: Code actually returns False here
+
+
+class TestCrackerHandleStrategyConflict(unittest.TestCase):
+    """Test _handle_strategy_conflict method"""
+
+    @patch('password_cracker.core.cracker.HashManager.repair_hash')
+    @patch('builtins.input', return_value='o')
+    def test_handle_strategy_conflict_overwrite(self, mock_input, mock_repair):
+        """Test strategy conflict chooses overwrite"""
+        mock_repair.return_value = "test_hash"
+        cracker = PasswordCracker(target_hash="test_hash", verbose=False)
+
+        result = cracker._handle_strategy_conflict('dictionary', 'brute_force')
+        self.assertEqual(result, 'overwrite')
+
+    @patch('password_cracker.core.cracker.HashManager.repair_hash')
+    @patch('builtins.input', return_value='a')
+    def test_handle_strategy_conflict_abort(self, mock_input, mock_repair):
+        """Test strategy conflict chooses abort"""
+        mock_repair.return_value = "test_hash"
+        cracker = PasswordCracker(target_hash="test_hash", verbose=False)
+
+        result = cracker._handle_strategy_conflict('dictionary', 'brute_force')
+        self.assertEqual(result, 'abort')
+
+    @patch('password_cracker.core.cracker.HashManager.repair_hash')
+    @patch('builtins.input', return_value='invalid')
+    def test_handle_strategy_conflict_invalid_aborts(self, mock_input, mock_repair):
+        """Test strategy conflict aborts on invalid input (matches code behavior)"""
+        mock_repair.return_value = "test_hash"
+        cracker = PasswordCracker(target_hash="test_hash", verbose=False)
+
+        # Code doesn't loop; it aborts on invalid input
+        result = cracker._handle_strategy_conflict('dictionary', 'brute_force')
+        self.assertEqual(result, 'abort')
 
 
 if __name__ == '__main__':
