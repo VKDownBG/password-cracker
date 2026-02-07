@@ -1,0 +1,44 @@
+# --- Python Standard ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Distribution / Builds ---
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# --- Unit Test / Coverage ---
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.pytest_cache/
+
+# --- IDE Settings (VS Code, PyCharm, etc) ---
+.idea/
+.vscode/
+*.swp
+
+# --- Project Specific (Runtime Data) ---
+# Ignore the cache folder where sessions and potfiles live
+cache/
+
+# Ignore session files if they somehow end up in root
+session_*.json
+*.json
+
+# Ignore cracked password database
+*.potfile

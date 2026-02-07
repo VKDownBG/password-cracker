@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "password_cracker"
+version = "0.1.0"
+description = "A password cracking tool"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "click",
+    "tqdm",
+    "rich",
+]
+
+[project.scripts]
+cracker = "password_cracker.cli:main"
+
+[tool.setuptools]
+packages = ["password_cracker"]
+
+[tool.setuptools.package-data]
+password_cracker = ["**/*"]

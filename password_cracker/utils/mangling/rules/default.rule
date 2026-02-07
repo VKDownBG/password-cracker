@@ -1,0 +1,143 @@
+# ==========================================
+# 1. No-Op & Basic Casing
+# ==========================================
+:
+c      # Capitalize first (Password)
+u      # Uppercase all (PASSWORD)
+l      # Lowercase all (password)
+C      # Inverse Capitalization (pASSWORD) - NEW!
+T      # Toggle Case (P -> p, p -> P)
+r      # Reverse (drowssap)
+
+# ==========================================
+# 2. Positional Toggles (Caps Lock Accidents)
+# Users often hold shift too long or hit it late
+# ==========================================
+t0     # Toggle 1st char (pASSWORD -> PASSWORD)
+t1     # Toggle 2nd char (PAssword)
+t2     # Toggle 3rd char (PaSword)
+t3     # Toggle 4th char (PasSword)
+T      # (Note: Requires 't' rule implementation)
+
+# ==========================================
+# 3. Truncation (Length Limits)
+# Websites often have 8, 10, or 12 char limits
+# ==========================================
+'4     # First 4 chars (Pass)
+'5     # First 5 chars (Passw)
+'6     # First 6 chars (Passwo)
+'7     # First 7 chars (Passwor)
+'8     # First 8 chars (Password)
+]      # Remove last char
+]]     # Remove last 2 chars
+]]]    # Remove last 3 chars
+[      # Remove first char (assword)
+
+# ==========================================
+# 4. Deletion (Specific Typos)
+# Missing a key press in common positions
+# ==========================================
+D0     # Delete 1st char (assword)
+D1     # Delete 2nd char (Pssword)
+D2     # Delete 3rd char (Pasword)
+D3     # Delete 4th char (Pasword) - common with double letters
+D@     # Purge special chars (remove spaces/hyphens)
+
+# ==========================================
+# 5. Appends (Top 10)
+# ==========================================
+$1
+$1$2$3
+$!
+$.
+$2
+$3
+$0
+$1$2
+$1$2$3$4$5
+$6$9
+
+# ==========================================
+# 6. Sandwiches (Prepend + Append)
+# ==========================================
+^!$!
+^#$#
+^@$@
+^*$*
+^($)
+^1$1
+^2$2
+^.$_
+^x$x
+
+# ==========================================
+# 7. Dates & Years (Context Aware)
+# ==========================================
+# Current Era
+$2$0$2$4
+$2$0$2$5
+$2$0$2$6
+
+# Workforce Birth Years (1985-2005)
+$1$9$8$5
+$1$9$8$6
+$1$9$8$7
+$1$9$8$8
+$1$9$8$9
+$1$9$9$0
+$1$9$9$1
+$1$9$9$2
+$1$9$9$3
+$1$9$9$4
+$1$9$9$5
+$1$9$9$6
+$1$9$9$7
+$1$9$9$8
+$1$9$9$9
+$2$0$0$0
+$2$0$0$1
+$2$0$0$2
+$2$0$0$3
+$2$0$0$4
+$2$0$0$5
+
+# ==========================================
+# 8. Advanced Leetspeak & Subs
+# ==========================================
+sa@
+so0
+si1
+si!
+se3
+ss$
+sa@so0
+sa@si1
+sa@si!se3
+
+# Reverse Leetspeak (Cleaning dirty wordlists)
+s@a
+s0o
+s1i
+s$s
+
+# ==========================================
+# 9. Positional Inserts & Swaps (Typos)
+# ==========================================
+i0!    # Insert ! at start
+i1!    # Insert ! after first letter (P!assword)
+o0!    # Overwrite first letter with ! (!assword)
+*01    # Swap first two chars (apssword)
+*12    # Swap 2nd/3rd chars (pasword)
+
+# ==========================================
+# 10. "The Corporate Complexity"
+# (Capital + Word + Number + Symbol)
+# ==========================================
+c$1
+c$1$2$3
+c$!
+c$.
+c$2$0$2$4
+c$2$0$2$5
+csa@$1
+cso0$!
