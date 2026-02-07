@@ -9,6 +9,9 @@ description = "A password cracking tool"
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
+    "blake3",
+    "argon2-cffi",
+    "pycryptodome",
     "click",
     "tqdm",
     "rich",

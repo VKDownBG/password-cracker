@@ -126,7 +126,7 @@ class CombinatorStrategy(CrackingStrategy):
             print(f"[*] Right wordlist: {right_path}")
 
         try:
-            right_words = read_wordlist(right_path)
+            right_words = list(read_wordlist(right_path))
         except FileNotFoundError:
             if verbose:
                 print(f"[!] Right wordlist not found: {right_path}")
