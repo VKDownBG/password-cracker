@@ -10,7 +10,7 @@ class HashManager:
     def _normalize_hash(hash_string: str) -> str:
         if not hash_string:
             return ""
-        return hash_string.strip().lower()
+        return hash_string.strip()
 
     @classmethod
     def repair_hash(cls, hash_string: str) -> str:

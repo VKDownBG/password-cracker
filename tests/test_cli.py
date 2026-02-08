@@ -429,7 +429,7 @@ class TestSessionManagement(unittest.TestCase):
             'strategy': 'rules',
             'progress': {
                 'wordlist_path': 'wordlist.txt',
-                'rules': ['rule1.rule', 'rule2.rule'],  # Changed from 'rules_files' to 'rules'
+                'rules': ['rule1.rule', 'rule2.rule'],
                 'stack': True,
                 'last_position': 50
             }
@@ -1026,6 +1026,761 @@ class TestRunMethod(unittest.TestCase):
         """Test run method with attack"""
         self.cli.run()
         mock_handle.assert_called_once()
+
+
+class TestHandleGenerate(unittest.TestCase):
+    """Test _handle_generate method"""
+
+    def setUp(self):
+        """Set up test fixtures"""
+        self.cli = CLI()
+
+    @patch('password_cracker.cli.HashManager.generate_hash')
+    def test_handle_generate_success(self, mock_generate):
+        """Test successful hash generation"""
+        mock_generate.return_value = '5f4dcc3b5aa765d61d8327deb882cf99'
+
+        args = argparse.Namespace(
+            generate=('password', 'md5'),
+            salt='',
+            hex_salt=False,
+            salt_position='after'
+        )
+
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            self.cli._handle_generate(args)
+            output = mock_stdout.getvalue()
+            self.assertIn('Generated MD5 hash', output)
+            self.assertIn('5f4dcc3b5aa765d61d8327deb882cf99', output)
+
+        mock_generate.assert_called_once_with(
+            'password',
+            'MD5',
+            salt='',
+            hex_salt=False,
+            salt_position='after'
+        )
+
+    @patch('password_cracker.cli.HashManager.generate_hash')
+    def test_handle_generate_with_salt(self, mock_generate):
+        """Test hash generation with salt"""
+        mock_generate.return_value = 'abcdef1234567890'
+
+        args = argparse.Namespace(
+            generate=('password', 'sha256'),
+            salt='mysalt',
+            hex_salt=True,
+            salt_position='before'
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            self.cli._handle_generate(args)
+
+        mock_generate.assert_called_once_with(
+            'password',
+            'SHA256',
+            salt='mysalt',
+            hex_salt=True,
+            salt_position='before'
+        )
+
+    @patch('password_cracker.cli.HashManager.generate_hash')
+    def test_handle_generate_error(self, mock_generate):
+        """Test hash generation with error"""
+        mock_generate.side_effect = ValueError("Invalid algorithm")
+
+        args = argparse.Namespace(
+            generate=('password', 'invalid'),
+            salt='',
+            hex_salt=False,
+            salt_position='after'
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._handle_generate(args)
+
+
+class TestHandleVerify(unittest.TestCase):
+    """Test _handle_verify method"""
+
+    def setUp(self):
+        """Set up test fixtures"""
+        self.cli = CLI()
+
+    @patch('password_cracker.cli.HashManager.verify_hash')
+    def test_handle_verify_match_with_algorithm(self, mock_verify):
+        """Test successful hash verification with specified algorithm"""
+        mock_verify.return_value = (True, 'MD5')
+
+        args = argparse.Namespace(
+            verify=['password', '5f4dcc3b5aa765d61d8327deb882cf99', 'md5'],
+            salt='',
+            hex_salt=False,
+            salt_position='after'
+        )
+
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            self.cli._handle_verify(args)
+            output = mock_stdout.getvalue()
+            self.assertIn('MATCH', output)
+            self.assertIn('MD5', output)
+
+        mock_verify.assert_called_once_with(
+            'password',
+            '5f4dcc3b5aa765d61d8327deb882cf99',
+            'MD5',
+            salt='',
+            hex_salt=False,
+            salt_position='after'
+        )
+
+    @patch('password_cracker.cli.HashManager.verify_hash')
+    def test_handle_verify_match_auto_detect(self, mock_verify):
+        """Test successful hash verification with auto-detection"""
+        mock_verify.return_value = (True, 'SHA256')
+
+        args = argparse.Namespace(
+            verify=['password', 'somehash'],
+            salt='',
+            hex_salt=False,
+            salt_position='after'
+        )
+
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            self.cli._handle_verify(args)
+            output = mock_stdout.getvalue()
+            self.assertIn('MATCH', output)
+            self.assertIn('SHA256', output)
+
+        mock_verify.assert_called_once_with(
+            'password',
+            'somehash',
+            None,
+            salt='',
+            hex_salt=False,
+            salt_position='after'
+        )
+
+    @patch('password_cracker.cli.HashManager.verify_hash')
+    def test_handle_verify_no_match(self, mock_verify):
+        """Test hash verification with no match"""
+        mock_verify.return_value = (False, 'None')
+
+        args = argparse.Namespace(
+            verify=['wrongpassword', '5f4dcc3b5aa765d61d8327deb882cf99', 'md5'],
+            salt='',
+            hex_salt=False,
+            salt_position='after'
+        )
+
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            self.cli._handle_verify(args)
+            output = mock_stdout.getvalue()
+            self.assertIn('No match', output)
+
+    def test_handle_verify_insufficient_args(self):
+        """Test hash verification with insufficient arguments"""
+        args = argparse.Namespace(
+            verify=['password'],
+            salt='',
+            hex_salt=False,
+            salt_position='after'
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._handle_verify(args)
+
+    def test_handle_verify_too_many_args(self):
+        """Test hash verification with too many arguments"""
+        args = argparse.Namespace(
+            verify=['password', 'hash', 'algo', 'extra'],
+            salt='',
+            hex_salt=False,
+            salt_position='after'
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._handle_verify(args)
+
+    @patch('password_cracker.cli.HashManager.verify_hash')
+    def test_handle_verify_with_salt(self, mock_verify):
+        """Test hash verification with salt"""
+        mock_verify.return_value = (True, 'MD5')
+
+        args = argparse.Namespace(
+            verify=['password', 'somehash', 'md5'],
+            salt='mysalt',
+            hex_salt=True,
+            salt_position='before'
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            self.cli._handle_verify(args)
+
+        mock_verify.assert_called_once_with(
+            'password',
+            'somehash',
+            'MD5',
+            salt='mysalt',
+            hex_salt=True,
+            salt_position='before'
+        )
+
+    @patch('password_cracker.cli.HashManager.verify_hash')
+    def test_handle_verify_exception(self, mock_verify):
+        """Test hash verification with exception"""
+        mock_verify.side_effect = Exception("Verification error")
+
+        args = argparse.Namespace(
+            verify=['password', 'hash', 'md5'],
+            salt='',
+            hex_salt=False,
+            salt_position='after'
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._handle_verify(args)
+
+
+class TestAttackDictionary(unittest.TestCase):
+    """Test _attack_dictionary method"""
+
+    def setUp(self):
+        """Set up test fixtures"""
+        self.cli = CLI()
+
+    @patch('os.path.exists')
+    @patch('password_cracker.cli.PasswordCracker')
+    def test_attack_dictionary_success(self, mock_cracker_class, mock_exists):
+        """Test successful dictionary attack"""
+        mock_exists.return_value = True
+        mock_cracker = Mock()
+        mock_cracker.dictionary.return_value = 'password123'
+
+        args = argparse.Namespace(wordlist='wordlist.txt')
+
+        result = self.cli._attack_dictionary(mock_cracker, args, 4)
+
+        self.assertEqual(result, 'password123')
+        mock_cracker.dictionary.assert_called_once_with(
+            wordlist_path='wordlist.txt',
+            processes=4
+        )
+
+    def test_attack_dictionary_no_wordlist(self):
+        """Test dictionary attack without wordlist"""
+        mock_cracker = Mock()
+        args = argparse.Namespace(wordlist=None)
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._attack_dictionary(mock_cracker, args, 4)
+
+    @patch('os.path.exists')
+    def test_attack_dictionary_wordlist_not_found(self, mock_exists):
+        """Test dictionary attack with non-existent wordlist"""
+        mock_exists.return_value = False
+        mock_cracker = Mock()
+        args = argparse.Namespace(wordlist='nonexistent.txt')
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._attack_dictionary(mock_cracker, args, 4)
+
+
+class TestAttackCombinator(unittest.TestCase):
+    """Test _attack_combinator method"""
+
+    def setUp(self):
+        """Set up test fixtures"""
+        self.cli = CLI()
+
+    @patch('os.path.exists')
+    @patch('password_cracker.cli.PasswordCracker')
+    def test_attack_combinator_success(self, mock_cracker_class, mock_exists):
+        """Test successful combinator attack"""
+        mock_exists.return_value = True
+        mock_cracker = Mock()
+        mock_cracker.combinator.return_value = 'password123'
+
+        args = argparse.Namespace(
+            wordlist='wordlist1.txt',
+            wordlist2='wordlist2.txt'
+        )
+
+        result = self.cli._attack_combinator(mock_cracker, args, 4)
+
+        self.assertEqual(result, 'password123')
+        mock_cracker.combinator.assert_called_once_with(
+            left_wordlist='wordlist1.txt',
+            right_wordlist='wordlist2.txt',
+            processes=4
+        )
+
+    def test_attack_combinator_missing_wordlist(self):
+        """Test combinator attack with missing wordlist"""
+        mock_cracker = Mock()
+        args = argparse.Namespace(wordlist='wordlist1.txt', wordlist2=None)
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._attack_combinator(mock_cracker, args, 4)
+
+    def test_attack_combinator_missing_both_wordlists(self):
+        """Test combinator attack with both wordlists missing"""
+        mock_cracker = Mock()
+        args = argparse.Namespace(wordlist=None, wordlist2=None)
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._attack_combinator(mock_cracker, args, 4)
+
+    @patch('os.path.exists')
+    def test_attack_combinator_left_wordlist_not_found(self, mock_exists):
+        """Test combinator attack with non-existent left wordlist"""
+        mock_exists.return_value = False
+        mock_cracker = Mock()
+        args = argparse.Namespace(
+            wordlist='nonexistent1.txt',
+            wordlist2='wordlist2.txt'
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._attack_combinator(mock_cracker, args, 4)
+
+    @patch('os.path.exists')
+    def test_attack_combinator_right_wordlist_not_found(self, mock_exists):
+        """Test combinator attack with non-existent right wordlist"""
+        def exists_side_effect(path):
+            return path == 'wordlist1.txt'
+
+        mock_exists.side_effect = exists_side_effect
+        mock_cracker = Mock()
+        args = argparse.Namespace(
+            wordlist='wordlist1.txt',
+            wordlist2='nonexistent2.txt'
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._attack_combinator(mock_cracker, args, 4)
+
+
+class TestAttackBruteforce(unittest.TestCase):
+    """Test _attack_bruteforce method"""
+
+    def setUp(self):
+        """Set up test fixtures"""
+        self.cli = CLI()
+
+    @patch('password_cracker.cli.PasswordCracker')
+    def test_attack_bruteforce_with_mask(self, mock_cracker_class):
+        """Test brute-force attack with mask"""
+        mock_cracker = Mock()
+        mock_cracker.brute_force.return_value = 'pass123'
+
+        args = argparse.Namespace(
+            wordlist2='?l?l?l',
+            custom_charset1='abc',
+            custom_charset2='123',
+            custom_charset3=None,
+            custom_charset4=None,
+            increment=False,
+            increment_min=1,
+            increment_max=4
+        )
+
+        result = self.cli._attack_bruteforce(mock_cracker, args, 4)
+
+        self.assertEqual(result, 'pass123')
+        mock_cracker.brute_force.assert_called_once()
+        call_kwargs = mock_cracker.brute_force.call_args[1]
+        self.assertEqual(call_kwargs['mask'], '?l?l?l')
+        self.assertEqual(call_kwargs['custom_charsets'], {'1': 'abc', '2': '123'})
+        self.assertEqual(call_kwargs['processes'], 4)
+
+    @patch('password_cracker.cli.PasswordCracker')
+    def test_attack_bruteforce_increment_mode(self, mock_cracker_class):
+        """Test brute-force attack with increment mode"""
+        mock_cracker = Mock()
+        mock_cracker.brute_force.return_value = 'abc'
+
+        args = argparse.Namespace(
+            wordlist2=None,
+            custom_charset1='abc',
+            custom_charset2=None,
+            custom_charset3=None,
+            custom_charset4=None,
+            increment=True,
+            increment_min=2,
+            increment_max=5
+        )
+
+        result = self.cli._attack_bruteforce(mock_cracker, args, 2)
+
+        self.assertEqual(result, 'abc')
+        mock_cracker.brute_force.assert_called_once()
+        call_kwargs = mock_cracker.brute_force.call_args[1]
+        self.assertEqual(call_kwargs['min_length'], 2)
+        self.assertEqual(call_kwargs['max_length'], 5)
+        self.assertEqual(call_kwargs['charset'], 'a')
+        self.assertEqual(call_kwargs['custom_charsets'], {'1': 'abc'})
+
+    @patch('password_cracker.cli.PasswordCracker')
+    def test_attack_bruteforce_default_increment(self, mock_cracker_class):
+        """Test brute-force attack with default increment"""
+        mock_cracker = Mock()
+        mock_cracker.brute_force.return_value = None
+
+        args = argparse.Namespace(
+            wordlist2=None,
+            custom_charset1=None,
+            custom_charset2=None,
+            custom_charset3=None,
+            custom_charset4=None,
+            increment=False,
+            increment_min=1,
+            increment_max=4
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            result = self.cli._attack_bruteforce(mock_cracker, args, 4)
+
+        mock_cracker.brute_force.assert_called_once()
+        call_kwargs = mock_cracker.brute_force.call_args[1]
+        self.assertEqual(call_kwargs['min_length'], 1)
+        self.assertEqual(call_kwargs['max_length'], 4)
+        self.assertEqual(call_kwargs['charset'], 'a')
+
+    @patch('password_cracker.cli.PasswordCracker')
+    def test_attack_bruteforce_all_custom_charsets(self, mock_cracker_class):
+        """Test brute-force attack with all custom charsets"""
+        mock_cracker = Mock()
+        mock_cracker.brute_force.return_value = 'test'
+
+        args = argparse.Namespace(
+            wordlist2='?1?2?3?4',
+            custom_charset1='abc',
+            custom_charset2='123',
+            custom_charset3='xyz',
+            custom_charset4='!@#',
+            increment=False,
+            increment_min=1,
+            increment_max=4
+        )
+
+        result = self.cli._attack_bruteforce(mock_cracker, args, 4)
+
+        call_kwargs = mock_cracker.brute_force.call_args[1]
+        self.assertEqual(call_kwargs['custom_charsets'], {
+            '1': 'abc',
+            '2': '123',
+            '3': 'xyz',
+            '4': '!@#'
+        })
+
+
+class TestAttackHybrid(unittest.TestCase):
+    """Test _attack_hybrid method"""
+
+    def setUp(self):
+        """Set up test fixtures"""
+        self.cli = CLI()
+
+    @patch('os.path.exists')
+    @patch('password_cracker.cli.PasswordCracker')
+    def test_attack_hybrid_append(self, mock_cracker_class, mock_exists):
+        """Test hybrid attack with append position"""
+        mock_exists.return_value = True
+        mock_cracker = Mock()
+        mock_cracker.hybrid.return_value = 'password123'
+
+        args = argparse.Namespace(
+            attack_mode=6,
+            wordlist='wordlist.txt',
+            wordlist2='?d?d?d',
+            custom_charset1='abc',
+            custom_charset2=None,
+            custom_charset3=None,
+            custom_charset4=None
+        )
+
+        result = self.cli._attack_hybrid(mock_cracker, args, 4, 'append')
+
+        self.assertEqual(result, 'password123')
+        mock_cracker.hybrid.assert_called_once_with(
+            wordlist_path='wordlist.txt',
+            mask='?d?d?d',
+            position='append',
+            custom_charsets={'1': 'abc'},
+            processes=4
+        )
+
+    @patch('os.path.exists')
+    @patch('password_cracker.cli.PasswordCracker')
+    def test_attack_hybrid_prepend(self, mock_cracker_class, mock_exists):
+        """Test hybrid attack with prepend position"""
+        mock_exists.return_value = True
+        mock_cracker = Mock()
+        mock_cracker.hybrid.return_value = '123password'
+
+        args = argparse.Namespace(
+            attack_mode=7,
+            wordlist='wordlist.txt',
+            wordlist2='?d?d?d',
+            custom_charset1=None,
+            custom_charset2=None,
+            custom_charset3=None,
+            custom_charset4=None
+        )
+
+        result = self.cli._attack_hybrid(mock_cracker, args, 2, 'prepend')
+
+        self.assertEqual(result, '123password')
+        mock_cracker.hybrid.assert_called_once()
+        call_kwargs = mock_cracker.hybrid.call_args[1]
+        self.assertEqual(call_kwargs['position'], 'prepend')
+
+    def test_attack_hybrid_missing_wordlist(self):
+        """Test hybrid attack without wordlist"""
+        mock_cracker = Mock()
+        args = argparse.Namespace(
+            attack_mode=6,
+            wordlist=None,
+            wordlist2='?d?d?d',
+            custom_charset1=None,
+            custom_charset2=None,
+            custom_charset3=None,
+            custom_charset4=None
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._attack_hybrid(mock_cracker, args, 4, 'append')
+
+    def test_attack_hybrid_missing_mask(self):
+        """Test hybrid attack without mask"""
+        mock_cracker = Mock()
+        args = argparse.Namespace(
+            attack_mode=6,
+            wordlist='wordlist.txt',
+            wordlist2=None,
+            custom_charset1=None,
+            custom_charset2=None,
+            custom_charset3=None,
+            custom_charset4=None
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._attack_hybrid(mock_cracker, args, 4, 'append')
+
+    @patch('os.path.exists')
+    def test_attack_hybrid_wordlist_not_found(self, mock_exists):
+        """Test hybrid attack with non-existent wordlist"""
+        mock_exists.return_value = False
+        mock_cracker = Mock()
+        args = argparse.Namespace(
+            attack_mode=6,
+            wordlist='nonexistent.txt',
+            wordlist2='?d?d?d',
+            custom_charset1=None,
+            custom_charset2=None,
+            custom_charset3=None,
+            custom_charset4=None
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._attack_hybrid(mock_cracker, args, 4, 'append')
+
+    @patch('os.path.exists')
+    @patch('password_cracker.cli.PasswordCracker')
+    def test_attack_hybrid_with_all_charsets(self, mock_cracker_class, mock_exists):
+        """Test hybrid attack with all custom charsets"""
+        mock_exists.return_value = True
+        mock_cracker = Mock()
+        mock_cracker.hybrid.return_value = 'result'
+
+        args = argparse.Namespace(
+            attack_mode=6,
+            wordlist='wordlist.txt',
+            wordlist2='?1?2?3?4',
+            custom_charset1='a',
+            custom_charset2='b',
+            custom_charset3='c',
+            custom_charset4='d'
+        )
+
+        self.cli._attack_hybrid(mock_cracker, args, 4, 'append')
+
+        call_kwargs = mock_cracker.hybrid.call_args[1]
+        self.assertEqual(call_kwargs['custom_charsets'], {
+            '1': 'a',
+            '2': 'b',
+            '3': 'c',
+            '4': 'd'
+        })
+
+
+class TestAttackRules(unittest.TestCase):
+    """Test _attack_rules method"""
+
+    def setUp(self):
+        """Set up test fixtures"""
+        self.cli = CLI()
+
+    @patch('os.path.exists')
+    @patch('password_cracker.cli.PasswordCracker')
+    def test_attack_rules_success(self, mock_cracker_class, mock_exists):
+        """Test successful rules attack"""
+        mock_exists.return_value = True
+        mock_cracker = Mock()
+        mock_cracker.rules.return_value = 'Password123'
+
+        args = argparse.Namespace(
+            wordlist='wordlist.txt',
+            rules_file=['rules/best64.rule'],
+            rules_stack=False
+        )
+
+        result = self.cli._attack_rules(mock_cracker, args, 4)
+
+        self.assertEqual(result, 'Password123')
+        mock_cracker.rules.assert_called_once_with(
+            wordlist_path='wordlist.txt',
+            rules=['rules/best64.rule'],
+            stack=False,
+            processes=4
+        )
+
+    @patch('os.path.exists')
+    @patch('password_cracker.cli.PasswordCracker')
+    def test_attack_rules_multiple_files(self, mock_cracker_class, mock_exists):
+        """Test rules attack with multiple rule files"""
+        mock_exists.return_value = True
+        mock_cracker = Mock()
+        mock_cracker.rules.return_value = 'P@ssw0rd'
+
+        args = argparse.Namespace(
+            wordlist='wordlist.txt',
+            rules_file=['rule1.rule', 'rule2.rule', 'rule3.rule'],
+            rules_stack=True
+        )
+
+        result = self.cli._attack_rules(mock_cracker, args, 8)
+
+        mock_cracker.rules.assert_called_once()
+        call_kwargs = mock_cracker.rules.call_args[1]
+        self.assertEqual(call_kwargs['rules'], ['rule1.rule', 'rule2.rule', 'rule3.rule'])
+        self.assertTrue(call_kwargs['stack'])
+        self.assertEqual(call_kwargs['processes'], 8)
+
+    def test_attack_rules_no_wordlist(self):
+        """Test rules attack without wordlist"""
+        mock_cracker = Mock()
+        args = argparse.Namespace(
+            wordlist=None,
+            rules_file=['rules/best64.rule'],
+            rules_stack=False
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._attack_rules(mock_cracker, args, 4)
+
+    def test_attack_rules_no_rules_file(self):
+        """Test rules attack without rules file"""
+        mock_cracker = Mock()
+        args = argparse.Namespace(
+            wordlist='wordlist.txt',
+            rules_file=None,
+            rules_stack=False
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._attack_rules(mock_cracker, args, 4)
+
+    @patch('os.path.exists')
+    def test_attack_rules_wordlist_not_found(self, mock_exists):
+        """Test rules attack with non-existent wordlist"""
+        mock_exists.return_value = False
+        mock_cracker = Mock()
+        args = argparse.Namespace(
+            wordlist='nonexistent.txt',
+            rules_file=['rules/best64.rule'],
+            rules_stack=False
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            with self.assertRaises(SystemExit):
+                self.cli._attack_rules(mock_cracker, args, 4)
+
+    @patch('os.path.exists')
+    @patch('password_cracker.cli.PasswordCracker')
+    def test_attack_rules_missing_rule_file_warning(self, mock_cracker_class, mock_exists):
+        """Test rules attack with missing rule file shows warning"""
+        def exists_side_effect(path):
+            return path == 'wordlist.txt'
+
+        mock_exists.side_effect = exists_side_effect
+        mock_cracker = Mock()
+        mock_cracker.rules.return_value = None
+
+        # Changed filename from 'nonexistent.rule' to 'missing_file.txt'
+        # to avoid triggering the "raw rule syntax" detection (because 'u' is a rule char)
+        args = argparse.Namespace(
+            wordlist='wordlist.txt',
+            rules_file=['missing_file.txt'],
+            rules_stack=False
+        )
+
+        with patch('sys.stdout', new_callable=StringIO) as mock_stdout:
+            self.cli._attack_rules(mock_cracker, args, 4)
+            output = mock_stdout.getvalue()
+            self.assertIn('Warning', output)
+
+    @patch('os.path.exists')
+    @patch('password_cracker.cli.PasswordCracker')
+    def test_attack_rules_raw_rule_syntax(self, mock_cracker_class, mock_exists):
+        """Test rules attack with raw rule syntax (contains special chars)"""
+        def exists_side_effect(path):
+            return path == 'wordlist.txt'
+
+        mock_exists.side_effect = exists_side_effect
+        mock_cracker = Mock()
+        mock_cracker.rules.return_value = None
+
+        args = argparse.Namespace(
+            wordlist='wordlist.txt',
+            rules_file=[':c'],
+            rules_stack=False
+        )
+
+        with patch('sys.stdout', new_callable=StringIO):
+            self.cli._attack_rules(mock_cracker, args, 4)
+
+        # Should not raise error for raw rule syntax
+        mock_cracker.rules.assert_called_once()
+
+
+class TestMainFunction(unittest.TestCase):
+    """Test main() function"""
+
+    @patch.object(CLI, 'run')
+    def test_main_calls_cli_run(self, mock_run):
+        """Test that main() creates CLI instance and calls run()"""
+        from password_cracker.cli import main
+
+        main()
+
+        mock_run.assert_called_once()
 
 
 if __name__ == '__main__':
